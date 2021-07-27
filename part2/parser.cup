@@ -1,0 +1,161 @@
+import java_cup.runtime.*;
+
+/**
+ *  Usercode Components
+ */
+parser code {:
+    // Connect this parser to a scanner!
+    Scanner s;
+    Parser(Scanner s){ this.s=s; }
+:}
+
+scan with {: return s.next_token(); :};
+
+
+/**
+ *  Symbol Lists
+ */
+
+/* Terminals (tokens returned by the scanner). */
+
+terminal            COMMA,LBR,RBR,LP,RP,IF,ELSE,SUFFIX,PREFIX,PLUS;
+terminal String     STRING_LITERAL,ID;
+
+/*  Non terminals */
+
+non terminal           program;
+non terminal String    str_term, fun_call, str_expr, inner_if_expr, inner_cond,inner_tail, fun_dec, fun_list, inner_arg, inner_fun_call, arg, main_list, tail, if_expr, cond, parameters, inner_str_expr, inner_str_term, main_body;
+
+
+/**
+ *  Precedence Declarations
+ */
+
+
+precedence left IF,PLUS;
+
+
+/**
+ *  The Grammar Rules
+ */
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+program ::= fun_list:fl main_list:ml {:
+      System.out.println("\n\npublic class Main {");
+      System.out.println("\tpublic static void main(String[] args) {");
+      System.out.printf("\n%s", ml);
+      System.out.println("\t}");
+      System.out.printf("\n%s", fl);
+      System.out.println("}");
+       :}
+       ;
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+fun_list ::= fun_list:fl fun_dec:fd                            {: RESULT = String.format("%s\tpublic static String %s;\n\n", fl, fd); :}
+            |                                                  {: RESULT = ""; :}
+            ;
+
+// function declaration 
+
+fun_dec ::=  ID:id LP parameters:p RP LBR inner_str_expr:ise RBR              {: RESULT = String.format("%s(%s){\n\t\treturn %s;\n\t}",id,p,ise); :}
+           | ID:id LP RP LBR inner_str_expr:ise RBR                           {: RESULT = String.format("%s( ){\n\t\treturn %s;\n\t}",id,ise); :}
+           ;
+
+// function's parameters consist of comma-separated identifiers
+
+parameters ::=  ID:id COMMA parameters:p        {: RESULT = String.format("String %s,%s",id,p); :}
+              | ID:id                           {: RESULT = String.format("String %s",id); :}
+              ;
+              
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// string expression declaration inside the function body, identifiers are allowed
+// string terms are concatenated with the "+" symbol
+
+inner_str_expr ::=  inner_str_term:ist PLUS inner_str_expr:ise           {: RESULT = String.format("%s+%s",ist,ise); :}
+                  | inner_str_term:ist                                   {: RESULT = String.format("%s",ist); :}
+                  ;
+
+
+inner_str_term ::=  STRING_LITERAL:s                                  {: RESULT = String.format("\"%s\"", s);  :}
+                  | inner_fun_call:f                                  {: RESULT = String.format("%s", f); :}
+                  | inner_if_expr:ife                                 {: RESULT = String.format("%s",ife); :}
+                  | ID:id                                             {: RESULT = String.format("%s",id); :}
+                  ;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// function call inside the function body
+// arguments separated with commas
+
+inner_fun_call ::=   ID:id LP inner_arg:i RP             {: RESULT = String.format("%s(%s)",id,i); :}
+                  |  ID:id LP RP                         {: RESULT = String.format("%s( )",id); :}
+                  ;
+
+
+inner_arg ::=  inner_str_expr:ise COMMA inner_arg:i                     {: RESULT = String.format("%s,%s",ise,i); :}
+             | inner_str_expr:ise                                       {: RESULT = String.format("%s",ise); :}
+             ;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// if expression inside the function body
+// logical expressions for the condition: is-prefix-of (string1 prefix string2) and is-suffix-of (string1 suffix string2)
+
+inner_if_expr ::= IF LP inner_cond:ic RP inner_str_expr:ise1 ELSE inner_str_expr:ise2    {: RESULT = String.format("(%s ? %s : %s)",ic,ise1,ise2); :}
+               ;
+       
+inner_cond ::= inner_str_expr:ise inner_tail:it         {: RESULT = String.format("%s%s)",it,ise); :}
+             ;
+
+inner_tail ::=   PREFIX inner_str_expr:ise               {: RESULT = String.format("(%s).startsWith(",ise);  :}
+              |  SUFFIX inner_str_expr:ise               {: RESULT = String.format("(%s).endsWith(",ise);    :}
+              ;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+main_list ::=  main_body:mb                       {: RESULT = String.format("%s\n", mb); :}
+             |                                    {: RESULT = ""; :}
+             ;
+              
+main_body ::=   main_body:mb str_expr:se              {: RESULT = String.format("%s\t\tSystem.out.println(%s);\n", mb, se); :}
+              | str_expr:se                           {: RESULT = String.format("\t\tSystem.out.println(%s);\n", se); :}
+              ;
+
+// function call at the main body
+// arguments separated with commas
+
+fun_call ::=  ID:id LP arg:a RP           {: RESULT = String.format("%s(%s)",id,a); :}
+            | ID:id LP RP                 {: RESULT = String.format("%s( )",id); :}
+           ;
+
+
+arg ::=  str_expr:se COMMA arg:a               {: RESULT = String.format("%s,%s",se,a); :}
+       | str_expr:se                           {: RESULT = String.format("%s",se); :}
+       ;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// string expression declaration at the main body, identifiers are NOT allowed
+// string terms are concatenated with the "+" symbol
+
+str_expr ::=  str_term:st PLUS str_expr:se            {: RESULT = String.format("%s+%s",st,se); :}
+            | str_term:st                             {: RESULT = String.format("%s",st); :}
+            ;
+
+str_term ::=  STRING_LITERAL:s                       {: RESULT = String.format("\"%s\"", s); :}
+            | fun_call:fc                            {: RESULT = String.format("%s", fc); :}
+            | if_expr:ife                            {: RESULT = String.format("%s",ife); :}
+            ;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// if expression at the main body
+// logical expressions for the condition: is-prefix-of (string1 prefix string2) and is-suffix-of (string1 suffix string2)
+
+if_expr ::= IF LP cond:c RP str_expr:se1 ELSE str_expr:se2    {: RESULT = String.format("(%s ? %s : %s)",c,se1,se2); :}
+         ;
+
+cond ::= str_expr:se tail:t           {: RESULT = String.format("%s%s)",t,se); :}
+       ;
+
+tail ::=  PREFIX str_expr:se          {: RESULT = String.format("(%s).startsWith(",se);  :}
+        | SUFFIX str_expr:se          {: RESULT = String.format("(%s).endsWith(",se);    :}
+        ;
